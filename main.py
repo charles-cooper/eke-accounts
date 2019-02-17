@@ -1,13 +1,9 @@
-print('ENTER 0')
-
 import web3
 import time
 import argparse
 import sys, os
 import sqlite3, json
 # import asyncio, aiohttp
-
-print('ENTER 1')
 
 def initdb() :
     c = sqlite3.connect('shorthash.db', isolation_level=None)
@@ -28,14 +24,8 @@ def initdb() :
         c.rollback()
     return c
 
-print('ENTER 2')
-
 with open('bip0039-english.txt') as f :
-    WORDS = [ word.strip() for word in f.read().split('\n') ]
-
-print(WORDS)
-
-print('ENTER 3')
+    WORDS = [ word.strip() for word in f.readlines() ]
 
 if __name__ == '__main__' :
 
@@ -59,12 +49,8 @@ if __name__ == '__main__' :
     else :
         sys.stderr.write('Connected.\n')
 
-    # loop = asyncio.get_event_loop()
-    # session = aiohttp.ClientSession(raise_for_status=True)
-
     current_block = 0
     while True :
-        print('ENTER')
         latest = w3.eth.getBlock('latest').number
         if current_block < latest :
             w3.eth.getBlock(current_block)
