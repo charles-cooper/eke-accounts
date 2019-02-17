@@ -1,9 +1,13 @@
+print('ENTER 0')
+
 import web3
 import time
 import argparse
 import sys, os
 import sqlite3, json
 # import asyncio, aiohttp
+
+print('ENTER 1')
 
 def initdb() :
     c = sqlite3.connect('shorthash.db', isolation_level=None)
@@ -24,14 +28,14 @@ def initdb() :
         c.rollback()
     return c
 
-#def getBlocksBatched(session, uri, loop, fromBlock, toBlock) :
-#    return loop.run_until_complete(
-#            asyncio.gather(*[_get_block_async(session, uri, blknum)
-#                for blknum in range(fromBlock, toBlock + 1)]))
+print('ENTER 2')
 
 with open('bip0039-english.txt') as f :
-    words = f.readlines()
-print(words)
+    WORDS = [ word.strip() for word in f.read().split('\n') ]
+
+print(WORDS)
+
+print('ENTER 3')
 
 if __name__ == '__main__' :
 
@@ -39,7 +43,7 @@ if __name__ == '__main__' :
     parser.add_argument('--web3-provider-uri', help='Web3.py provider uri (same format as WEB3_PROVIDER_URI')
     args = parser.parse_args()
 
-    initdb()
+    c = initdb()
 
     if args.web3_provider_uri :
         p = web3.providers.auto.load_provider_from_uri(args.web3_provider_uri)
