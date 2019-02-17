@@ -1,1 +1,2 @@
-web3
+web3>=5.0.0a3
+aiohttp

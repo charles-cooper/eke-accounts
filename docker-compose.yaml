@@ -4,7 +4,9 @@ services:
   runner:
     build: .
     volumes:
-      .:/app
+      - .:/app
     command:
       - python
       - main.py
+    env_file:
+      runner.env
