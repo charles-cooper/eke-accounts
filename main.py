@@ -3,7 +3,7 @@ import time
 import argparse
 import sys, os
 import sqlite3, json
-import asyncio, aiohttp
+# import asyncio, aiohttp
 
 def initdb() :
     c = sqlite3.connect('shorthash.db', isolation_level=None)
@@ -24,24 +24,14 @@ def initdb() :
         c.rollback()
     return c
 
-async def _get_block_async(session, uri, blknum) :
-    req = { "method":"eth_getBlockByNumber",
-            "params":[w3.toHex(blknum),True],
-            "id":1,
-            "jsonrpc":"2.0"
-            }
-    async with session.post(uri, json=req) as res :
-        txt = await res.text()
-        res = json.loads(txt)
-        if 'error' in res :
-            raise ValueError(res['error'])
-        else :
-            return res['result']
+#def getBlocksBatched(session, uri, loop, fromBlock, toBlock) :
+#    return loop.run_until_complete(
+#            asyncio.gather(*[_get_block_async(session, uri, blknum)
+#                for blknum in range(fromBlock, toBlock + 1)]))
 
-def getBlocksBatched(session, uri, loop, fromBlock, toBlock) :
-    return loop.run_until_complete(
-            asyncio.gather(*[_get_block_async(session, uri, blknum)
-                for blknum in range(fromBlock, toBlock + 1)]))
+with open('bip0039-english.txt') as f :
+    words = f.readlines()
+print(words)
 
 if __name__ == '__main__' :
 
@@ -65,25 +55,15 @@ if __name__ == '__main__' :
     else :
         sys.stderr.write('Connected.\n')
 
-    loop = asyncio.get_event_loop()
+    # loop = asyncio.get_event_loop()
+    # session = aiohttp.ClientSession(raise_for_status=True)
 
-    session = aiohttp.ClientSession(raise_for_status=True)
-
-    latest = w3.eth.getBlock('latest').number
     current_block = 0
     while True :
+        print('ENTER')
+        latest = w3.eth.getBlock('latest').number
         if current_block < latest :
-            start = time.time()
-            CHUNK_SIZE = 100
-            next_block = min(current_block + CHUNK_SIZE, latest)
-            uri = args.web3_provider_uri or os.environ['WEB3_PROVIDER_URI']
-            print('ENTER 1')
-            blks = getBlocksBatched(session, uri, loop, current_block, next_block)
-            print('ENTER 2')
-            print(len(blks))
-            print(f'cur {next_block}')
-            end = time.time()
-            print(f'{end - start}s')
-            current_block = next_block
+            w3.eth.getBlock(current_block)
+            current_block += 1
         else :
             time.sleep(1)
