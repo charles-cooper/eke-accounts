@@ -46,16 +46,45 @@ def process_block(c, blk) :
         addrs += [ txn['from'], txn['to'] ]
     merge_addresses(c, addrs)
 
-def merge_addresses(c, addrs) :
-    words = [ address_to_words(addr) for addr in addrs ]
-    prefixes = [ ' '.join([w[0],w[1]]) for w in words ]
-    for prfx in prefixes :
-        print(prfx)
+# For each of words1 and words2, find the shortest prefix that doesn't
+# begin the other word.
+def resolve_conflict(words1, words2) :
+    assert words1 != words2
+    ret1 = []
+    ret2 = []
+    for w1, w2 in zip(words1, words2) :
+        ret1.append(w1)
+        ret2.append(w2)
+        if w1 != w2 :
+            break
 
-    # resultset = list(c.executemany(f'select * from addresses where prefix in ({",".join(["?" for x in prefixes])})'))
-    # for addrwords in words :
-    #     for x in resultset :
-    #         if addrwords.beginswith(x['shorthash']) :
+# Merge in addresses, breaking shorthash collisions when found
+# Slow/naive implementation, not batched.
+def merge_addresses(c, addrs) :
+    for addr in addrs :
+        words = address_to_words(addr)
+        possible_shorthashes = [ ' '.join(
+        prefix = ' '.join((w[0],w[1]))
+        suffix = ' '.join((w[-2],w[-1]))
+        exists = len(c.executemany(
+            f'select * from addresses where address = (?)'))
+        if exists :
+            continue
+        else :
+            resultset = list(c.execute(
+                f'select * from addresses where shorthash in ({",".join(["?" for _ in words])})'))
+            # INVARIANT at most one shorthash can be a prefix of this address.
+            # otherwise a merge would have already broken the collision.
+            assert len(resultset) <= 1
+            if not resultset :
+                c.execute(f'insert into addresses ?', address) # other cols
+            else :
+                new_words1, new_words2 = resolve_conflict(words1, words2)
+                c.execute('begin')
+                c.execute(f'delete from addresses where address = ?', existing_address)
+                c.execute(f'insert into addresses ?', new_address1) # other cols
+                c.execute(f'insert into addresses ?', new_address2) # other cols
+                c.execute(f'commit')
 
 if __name__ == '__main__' :
 
