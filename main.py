@@ -143,9 +143,12 @@ if __name__ == '__main__' :
     print(current_block)
     while True :
         latest = w3.eth.getBlock('latest').number
+        # (don't handle reorgs)
         if current_block < latest :
+            # always a block behind
             blk = w3.eth.getBlock(current_block, full_transactions=True)
             process_block(c, blk)
             current_block += 1
+            c.execute('update current_block set block = ?', (current_block,))
         else :
             time.sleep(1)
