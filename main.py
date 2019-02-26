@@ -140,10 +140,10 @@ async def get_current_block(req) :
 
 def parse_resultset(resultset) :
     ret = [ {
-                'prefix': pr,
+                'prefix': prefix,
                 'suffix': suffix,
                 'shorthash': shorthash,
-                'address': addr }
+                'address': address }
             for (prefix, suffix, shorthash, address) in resultset ]
     return ret
 
