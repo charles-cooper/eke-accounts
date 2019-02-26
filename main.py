@@ -43,7 +43,10 @@ def process_block(c, blk) :
     txns = blk.transactions
     addrs = []
     for txn in txns :
-        addrs += [ txn['from'], txn['to'] ]
+        if 'from' in txn and txn['from'] :
+            addrs.append(txn['from'])
+        if 'to' in txn and txn['to'] :
+            addrs.append(txn['to'])
     merge_addresses(c, addrs)
 
 # For each of words1 and words2, find the shortest prefix that doesn't
@@ -63,27 +66,35 @@ def resolve_conflict(words1, words2) :
 def merge_addresses(c, addrs) :
     for addr in addrs :
         words = address_to_words(addr)
-        possible_shorthashes = [ ' '.join(
-        prefix = ' '.join((w[0],w[1]))
-        suffix = ' '.join((w[-2],w[-1]))
-        exists = len(c.executemany(
-            f'select * from addresses where address = (?)'))
+        prefix = ' '.join((words[0],words[1]))
+        suffix = ' '.join((words[-2],words[-1]))
+        possible_prefixes = [ # starting at 2- word prefix
+                ' '.join(words[0:i+1])
+                for i in range(1,len(words)) ]
+        # print(possible_prefixes)
+        exists = len(list(c.execute(
+            f'select * from accounts where address = ?', (addr,))))
         if exists :
             continue
         else :
             resultset = list(c.execute(
-                f'select * from addresses where shorthash in ({",".join(["?" for _ in words])})'))
+                f'''select *
+                from accounts
+                where shorthash in
+                    ({','.join(['?' for _ in possible_prefixes])})''',
+                possible_prefixes))
             # INVARIANT at most one shorthash can be a prefix of this address.
             # otherwise a merge would have already broken the collision.
             assert len(resultset) <= 1
             if not resultset :
-                c.execute(f'insert into addresses ?', address) # other cols
+                c.execute(f'insert into accounts VALUES (?,?,?,?)',
+                        (prefix, suffix, prefix, addr))
             else :
                 new_words1, new_words2 = resolve_conflict(words1, words2)
                 c.execute('begin')
-                c.execute(f'delete from addresses where address = ?', existing_address)
-                c.execute(f'insert into addresses ?', new_address1) # other cols
-                c.execute(f'insert into addresses ?', new_address2) # other cols
+                c.execute(f'delete from accounts where address = ?', existing_address)
+                c.execute(f'insert into accounts ?', new_address1) # other cols
+                c.execute(f'insert into accounts ?', new_address2) # other cols
                 c.execute(f'commit')
 
 if __name__ == '__main__' :
