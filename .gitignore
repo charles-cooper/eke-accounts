@@ -1,3 +1,4 @@
 env/
 runner.env
 shorthash.db
+shorthash.db-journal
