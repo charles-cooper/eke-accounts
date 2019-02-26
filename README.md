@@ -10,3 +10,14 @@ the shortest unique prefix for each seen address and stores it in a
 database so one can look up the full address from its 'shorthash'. It
 also implements a simple HTTP server to help query the database
 remotely.
+
+As a service to the community, a server running this software is hosted
+at shorthash.coopertech.co. Example usage:
+```bash
+$ curl shorthash.coopertech.co/current-block
+{"current_block": 8137}
+$ curl shorthash.coopertech.co/account-by-address?address=0x631030A5B27B07288a45696F189E1114f12A81c0
+{"prefix": "arrest scare", "suffix": "toward thing", "shorthash": "arrest scare family", "address": "0x631030A5B27B07288a45696F189E1114f12A81c0"}
+$ curl shorthash.coopertech.co/accounts-by-prefix?prefix=arrest%20scare
+[{"prefix": "arrest scare", "suffix": "pony emerge", "shorthash": "arrest scare motion", "address": "0x6310B020fD98044957995092090F17F04e52cdfD"}, {"prefix": "arrest scare", "suffix": "toward thing", "shorthash": "arrest scare family", "address": "0x631030A5B27B07288a45696F189E1114f12A81c0"}]
+```
