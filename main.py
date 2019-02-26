@@ -32,10 +32,10 @@ with open('bip0039-english.txt') as f :
 def address_to_words(addr) :
     bs = web3._utils.encoding.decode_hex(addr)
     chksm = hashlib.sha256(bs).digest()[:2]
-    addrint = int.from_bytes(bs + chksm, byteorder='big')
+    addrint = int.from_bytes(bs + chksm, byteorder='little')
     ret = []
     for i in range(0, 16) :
-        ret.append(WORDS[addrint & 2047])
+        ret.append(WORDS[addrint & ((1<<11) - 1)])
         addrint >>= 11
     return ret
 
@@ -60,6 +60,8 @@ def resolve_conflict(words1, words2) :
         ret2.append(w2)
         if w1 != w2 :
             break
+    assert ret1 != ret2
+    return ret1, ret2
 
 # Merge in addresses, breaking shorthash collisions when found
 # Slow/naive implementation, not batched.
@@ -90,11 +92,17 @@ def merge_addresses(c, addrs) :
                 c.execute(f'insert into accounts VALUES (?,?,?,?)',
                         (prefix, suffix, prefix, addr))
             else :
-                new_words1, new_words2 = resolve_conflict(words1, words2)
+                (ex_prefix, ex_suffix, _, ex_addr) = resultset[0]
+                ex_words = address_to_words(ex_addr)
+                shorthash, ex_shorthash = resolve_conflict(words, ex_words)
+                shorthash = ' '.join(shorthash)
+                ex_shorthash = ' '.join(ex_shorthash)
                 c.execute('begin')
-                c.execute(f'delete from accounts where address = ?', existing_address)
-                c.execute(f'insert into accounts ?', new_address1) # other cols
-                c.execute(f'insert into accounts ?', new_address2) # other cols
+                c.execute(f'delete from accounts where address = ?', (ex_addr,))
+                c.execute(f'insert into accounts VALUES (?,?,?,?)',
+                        (ex_prefix, ex_suffix, ex_shorthash, ex_addr))
+                c.execute(f'insert into accounts VALUES (?,?,?,?)',
+                        (prefix, suffix, shorthash, addr))
                 c.execute(f'commit')
 
 if __name__ == '__main__' :
@@ -104,6 +112,17 @@ if __name__ == '__main__' :
     args = parser.parse_args()
 
     c = initdb()
+
+    TEST = False
+    if TEST :
+        addresses = [
+                '0xb9791670d62591222bb999ae9c81485c7c91eb41',
+                '0xb9791670d62591222bb999ae9c81485c7c91eb42',
+                ]
+        merge_addresses(c, addresses)
+        for x in c.execute('select * from accounts') :
+            print(x)
+        sys.exit(0)
 
     if args.web3_provider_uri :
         p = web3.providers.auto.load_provider_from_uri(args.web3_provider_uri)
@@ -120,7 +139,7 @@ if __name__ == '__main__' :
         sys.stderr.write('Connected.\n')
 
     current_block = list(c.execute('select * from current_block'))[0][0]
-    current_block = 1000000
+    # current_block = 1000000
     print(current_block)
     while True :
         latest = w3.eth.getBlock('latest').number
