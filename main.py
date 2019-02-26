@@ -6,8 +6,8 @@ import sqlite3, json
 import hashlib
 # import asyncio, aiohttp
 
-def initdb() :
-    c = sqlite3.connect('shorthash.db', isolation_level=None)
+def initdb(dbpath='shorthash.db') :
+    c = sqlite3.connect(dbpath, isolation_level=None)
     # create schema
     c.execute('''CREATE TABLE IF NOT EXISTS accounts (
     prefix text,
@@ -111,10 +111,10 @@ if __name__ == '__main__' :
     parser.add_argument('--web3-provider-uri', help='Web3.py provider uri (same format as WEB3_PROVIDER_URI')
     args = parser.parse_args()
 
-    c = initdb()
 
     TEST = False
     if TEST :
+        c = initdb('test.db')
         addresses = [
                 '0xb9791670d62591222bb999ae9c81485c7c91eb41',
                 '0xb9791670d62591222bb999ae9c81485c7c91eb42',
@@ -123,6 +123,8 @@ if __name__ == '__main__' :
         for x in c.execute('select * from accounts') :
             print(x)
         sys.exit(0)
+    else :
+        c = initdb()
 
     if args.web3_provider_uri :
         p = web3.providers.auto.load_provider_from_uri(args.web3_provider_uri)
