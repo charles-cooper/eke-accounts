@@ -149,15 +149,19 @@ def parse_resultset(resultset) :
 
 async def get_accounts_by_prefix(req) :
     q = req.rel_url.query
-    prefix = q['prefix']
+    prefix = q.get('prefix')
     # print(prefix)
+    if not prefix :
+        raise web.HTTPBadRequest(reason='param \'prefix\' required')
     dat = parse_resultset(list(c.execute(
         'select * from accounts where prefix = ?', (prefix,))))
     return web.json_response(dat)
 
 async def get_account_by_address(req) :
     q = req.rel_url.query
-    addr = q['address']
+    addr = q.get('address')
+    if not addr :
+        raise web.HTTPBadRequest(reason='param \'address\' required')
     addr = w3.toChecksumAddress(addr)
     # print(prefix)
     dat = parse_resultset(list(c.execute(
