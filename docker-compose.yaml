@@ -8,6 +8,8 @@ services:
     command:
       - python
       - main.py
+    ports:
+      - "8080:8080"
     environment:
       - PYTHONUNBUFFERED=1
     env_file:

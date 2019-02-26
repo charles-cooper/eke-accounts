@@ -4,7 +4,9 @@ import argparse
 import sys, os
 import sqlite3, json
 import hashlib
-# import asyncio, aiohttp
+import asyncio
+from aiohttp import web
+import logging
 
 def initdb(dbpath='shorthash.db') :
     c = sqlite3.connect(dbpath, isolation_level=None)
@@ -15,7 +17,9 @@ def initdb(dbpath='shorthash.db') :
     shorthash text primary key,
     address text)''') # address is stored checksummed and hex encoded
     c.execute('''create index if not exists accounts_prefix_idx
-    on accounts(prefix)''')
+        on accounts(prefix)''')
+    c.execute('''create index if not exists accounts_address_idx_
+        on accounts(address)''')
     c.execute('''CREATE TABLE IF NOT EXISTS current_block (block int)''')
     c.execute('begin')
     rs = list(c.execute('select * from current_block'))
@@ -105,6 +109,52 @@ def merge_addresses(c, addrs) :
                         (prefix, suffix, shorthash, addr))
                 c.execute(f'commit')
 
+async def poll_blocks() :
+    global current_block
+    while True :
+        latest = w3.eth.getBlock('latest').number
+        # (don't handle reorgs)
+        if current_block < latest :
+            # always a block behind
+            blk = w3.eth.getBlock(current_block, full_transactions=True)
+            process_block(c, blk)
+            current_block += 1
+            c.execute('update current_block set block = ?', (current_block,))
+            await asyncio.sleep(0.00001) # give other coros chance to grab execution
+        else :
+            await asyncio.sleep(1)
+
+async def get_current_block(req) :
+    global current_block
+    return web.json_response({'current_block': current_block})
+
+async def get_accounts_by_prefix(req) :
+    q = req.rel_url.query
+    prefix = q['prefix']
+    # print(prefix)
+    resultset = list(c.execute(
+        'select * from accounts where prefix = ?', (prefix,)))
+    results = [
+            {
+                'prefix': pr,
+                'suffix': suffix,
+                'shorthash': shorthash,
+                'address': addr }
+            for (prefix, suffix, shorthash, address) in resultset ]
+    return web.json_response(results)
+
+async def run_server() :
+    app = web.Application()
+    app.add_routes([
+        web.get('/current-block', get_current_block),
+        web.get('/accounts-by-prefix', get_accounts_by_prefix),
+        ])
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, '0.0.0.0', 8080)
+    await site.start()
+
 if __name__ == '__main__' :
 
     parser = argparse.ArgumentParser()
@@ -140,17 +190,18 @@ if __name__ == '__main__' :
     else :
         sys.stderr.write('Connected.\n')
 
+    global loop
+    loop = asyncio.get_event_loop()
+    global current_block
     current_block = list(c.execute('select * from current_block'))[0][0]
-    # current_block = 1000000
     print(current_block)
-    while True :
-        latest = w3.eth.getBlock('latest').number
-        # (don't handle reorgs)
-        if current_block < latest :
-            # always a block behind
-            blk = w3.eth.getBlock(current_block, full_transactions=True)
-            process_block(c, blk)
-            current_block += 1
-            c.execute('update current_block set block = ?', (current_block,))
-        else :
-            time.sleep(1)
+
+    # logging.getLogger('aiohttp.web').setLevel('DEBUG')
+    # logging.getLogger('aiohttp.server').setLevel('DEBUG')
+    # logging.getLogger('aiohttp.internal').setLevel('DEBUG')
+    # logging.getLogger('aiohttp.access').setLevel('DEBUG')
+
+    # TODO exception handling
+    loop.run_until_complete(asyncio.gather(
+        poll_blocks(),
+        run_server()))
