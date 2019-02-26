@@ -45,13 +45,22 @@ def address_to_words(addr) :
 
 def process_block(c, blk) :
     txns = blk.transactions
-    addrs = []
+    addrs = [] # web3 returns checksummed addresses
     for txn in txns :
         if 'from' in txn and txn['from'] :
             addrs.append(txn['from'])
         if 'to' in txn and txn['to'] :
             addrs.append(txn['to'])
     merge_addresses(c, addrs)
+
+def process_genesis(c, genesis) :
+    addrs = []
+    for acct in genesis['accounts'] :
+        if 'balance' in genesis['accounts'][acct] :
+            addrs.append(acct)
+    addrs = [ w3.toChecksumAddress(addr) for addr in addrs ]
+    merge_addresses(c, addrs)
+    print('Genesis processed')
 
 # For each of words1 and words2, find the shortest prefix that doesn't
 # begin the other word.
@@ -71,6 +80,7 @@ def resolve_conflict(words1, words2) :
 # Slow/naive implementation, not batched.
 def merge_addresses(c, addrs) :
     for addr in addrs :
+        # print(addr)
         words = address_to_words(addr)
         prefix = ' '.join((words[0],words[1]))
         suffix = ' '.join((words[-2],words[-1]))
@@ -128,26 +138,39 @@ async def get_current_block(req) :
     global current_block
     return web.json_response({'current_block': current_block})
 
-async def get_accounts_by_prefix(req) :
-    q = req.rel_url.query
-    prefix = q['prefix']
-    # print(prefix)
-    resultset = list(c.execute(
-        'select * from accounts where prefix = ?', (prefix,)))
-    results = [
-            {
+def parse_resultset(resultset) :
+    ret = [ {
                 'prefix': pr,
                 'suffix': suffix,
                 'shorthash': shorthash,
                 'address': addr }
             for (prefix, suffix, shorthash, address) in resultset ]
-    return web.json_response(results)
+    return ret
+
+async def get_accounts_by_prefix(req) :
+    q = req.rel_url.query
+    prefix = q['prefix']
+    # print(prefix)
+    dat = parse_resultset(list(c.execute(
+        'select * from accounts where prefix = ?', (prefix,))))
+    return web.json_response(dat)
+
+async def get_account_by_address(req) :
+    q = req.rel_url.query
+    addr = q['address']
+    addr = w3.toChecksumAddress(addr)
+    # print(prefix)
+    dat = parse_resultset(list(c.execute(
+        'select * from accounts where address = ?', (addr,))))
+    return web.json_response(dat[0])
 
 async def run_server() :
     app = web.Application()
     app.add_routes([
         web.get('/current-block', get_current_block),
+        # merge these and switch on query param?
         web.get('/accounts-by-prefix', get_accounts_by_prefix),
+        web.get('/account-by-address', get_account_by_address),
         ])
 
     runner = web.AppRunner(app)
@@ -160,7 +183,6 @@ if __name__ == '__main__' :
     parser = argparse.ArgumentParser()
     parser.add_argument('--web3-provider-uri', help='Web3.py provider uri (same format as WEB3_PROVIDER_URI')
     args = parser.parse_args()
-
 
     TEST = False
     if TEST :
@@ -190,11 +212,14 @@ if __name__ == '__main__' :
     else :
         sys.stderr.write('Connected.\n')
 
-    global loop
     loop = asyncio.get_event_loop()
-    global current_block
     current_block = list(c.execute('select * from current_block'))[0][0]
     print(current_block)
+
+    if current_block == 0 :
+        with open('foundation.json') as f :
+            genesis = json.loads(f.read())
+        process_genesis(c, genesis)
 
     # logging.getLogger('aiohttp.web').setLevel('DEBUG')
     # logging.getLogger('aiohttp.server').setLevel('DEBUG')
