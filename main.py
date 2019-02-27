@@ -101,7 +101,7 @@ def merge_addresses(c, addrs) :
                 possible_prefixes))
             # INVARIANT at most one shorthash can be a prefix of this address.
             # otherwise a merge would have already broken the collision.
-            assert len(resultset) <= 1
+            assert len(resultset) <= 1, possible_prefixes
             if not resultset :
                 c.execute(f'insert into accounts VALUES (?,?,?,?)',
                         (prefix, suffix, prefix, addr))
