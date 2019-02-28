@@ -10,6 +10,7 @@ import logging
 
 def initdb(dbpath='shorthash.db') :
     c = sqlite3.connect(dbpath, isolation_level=None)
+
     # create schema
     c.execute('''CREATE TABLE IF NOT EXISTS accounts (
     prefix text,
@@ -20,6 +21,10 @@ def initdb(dbpath='shorthash.db') :
         on accounts(prefix)''')
     c.execute('''create index if not exists accounts_address_idx_
         on accounts(address)''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS unusable_shorthashes (
+        shorthash text primary key)''')
+
     c.execute('''CREATE TABLE IF NOT EXISTS current_block (block int)''')
     c.execute('begin')
     rs = list(c.execute('select * from current_block'))
@@ -68,13 +73,25 @@ def resolve_conflict(words1, words2) :
     assert words1 != words2
     ret1 = []
     ret2 = []
+    ret3 = []
     for w1, w2 in zip(words1, words2) :
         ret1.append(w1)
         ret2.append(w2)
         if w1 != w2 :
             break
+        ret3.append(w1)
     assert ret1 != ret2
-    return ret1, ret2
+    return ret1, ret2, ret3
+
+def _prefix(words) :
+    return ' '.join((words[0],words[1]))
+
+def _suffix(words) :
+    return ' '.join((words[-2],words[-1]))
+
+def _possible_prefixes(words) :
+    # starting at 2- word prefix
+    return [ ' '.join(words[0:i+1]) for i in range(1,len(words)) ]
 
 # Merge in addresses, breaking shorthash collisions when found
 # Slow/naive implementation, not batched.
@@ -82,11 +99,9 @@ def merge_addresses(c, addrs) :
     for addr in addrs :
         # print(addr)
         words = address_to_words(addr)
-        prefix = ' '.join((words[0],words[1]))
-        suffix = ' '.join((words[-2],words[-1]))
-        possible_prefixes = [ # starting at 2- word prefix
-                ' '.join(words[0:i+1])
-                for i in range(1,len(words)) ]
+        prefix = _prefix(words)
+        suffix = _suffix(words)
+        possible_prefixes = _possible_prefixes(words)
         # print(possible_prefixes)
         exists = len(list(c.execute(
             f'select * from accounts where address = ?', (addr,))))
@@ -99,22 +114,58 @@ def merge_addresses(c, addrs) :
                 where shorthash in
                     ({','.join(['?' for _ in possible_prefixes])})''',
                 possible_prefixes))
+
             # INVARIANT at most one shorthash can be a prefix of this address.
             # otherwise a merge would have already broken the collision.
-            assert len(resultset) <= 1, possible_prefixes
+            assert len(resultset) <= 1, (addr, possible_prefixes)
+
             if not resultset :
+                c.execute('begin')
+                unusable_prefixes = [x[0] for x in c.execute(
+                    f'''select *
+                    from unusable_shorthashes
+                    where shorthash in
+                        ({','.join(['?' for _ in possible_prefixes])})''',
+                    possible_prefixes)]
+                available_shorthashes = \
+                        [ p for p in possible_prefixes
+                                if p not in unusable_prefixes ]
+                assert len(available_shorthashes) > 0, addr
+                shorthash = available_shorthashes[0]
+                # print(addr, unusable_prefixes, available_shorthashes, shorthash)
                 c.execute(f'insert into accounts VALUES (?,?,?,?)',
-                        (prefix, suffix, prefix, addr))
+                        (prefix, suffix, shorthash, addr))
+                c.execute('commit')
             else :
                 (ex_prefix, ex_suffix, _, ex_addr) = resultset[0]
+
                 ex_words = address_to_words(ex_addr)
-                shorthash, ex_shorthash = resolve_conflict(words, ex_words)
+
+                shorthash, ex_shorthash, unusable = \
+                        resolve_conflict(words, ex_words)
+
+                unusable_shorthashes = _possible_prefixes(unusable)
                 shorthash = ' '.join(shorthash)
                 ex_shorthash = ' '.join(ex_shorthash)
+
                 c.execute('begin')
+
+                # upsert new used shorthashes
+                c.execute(f'''delete
+                    from unusable_shorthashes
+                    where shorthash in
+                        ({','.join(['?' for _ in unusable_shorthashes])})''',
+                        unusable_shorthashes)
+                c.execute(f'''insert
+                    into unusable_shorthashes (shorthash) VALUES
+                        {','.join(['(?)' for _ in unusable_shorthashes])}''',
+                        unusable_shorthashes)
+
+                # upsert the old account with new shorthash
                 c.execute(f'delete from accounts where address = ?', (ex_addr,))
                 c.execute(f'insert into accounts VALUES (?,?,?,?)',
                         (ex_prefix, ex_suffix, ex_shorthash, ex_addr))
+                # insert the new account
                 c.execute(f'insert into accounts VALUES (?,?,?,?)',
                         (prefix, suffix, shorthash, addr))
                 c.execute(f'commit')
@@ -186,14 +237,31 @@ if __name__ == '__main__' :
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--web3-provider-uri', help='Web3.py provider uri (same format as WEB3_PROVIDER_URI')
+    parser.add_argument('--test', action='store_true')
     args = parser.parse_args()
 
-    TEST = False
-    if TEST :
+    if args.test :
+        try :
+            os.remove('test.db')
+        except FileNotFoundError :
+            pass
         c = initdb('test.db')
         addresses = [
                 '0xb9791670d62591222bb999ae9c81485c7c91eb41',
                 '0xb9791670d62591222bb999ae9c81485c7c91eb42',
+                '0x0000000083178E9873ce992f73915EEfa3A27aC5',
+                '0x00000000742A16c2ccFdf3A6FDe782E6e95b4120',
+                '0x0000000000000000000000000000000000000000',
+                '0x0000000000000000000000000000000000000001',
+                '0x0000000103026f36d9f2BA6468d2816Cd5Dce83a',
+                '0x0000000000000000000000000000000000000123',
+                '0x0000000000000000000000000000000000000027',
+                '0x0000000000000000000000000000000000001337',
+                '0x00000000202cb962ac59075B964b07152d234B70',
+                '0x00000000D48105B0110dafb0D131FaDDE9AAF59b',
+                '0x00000000Be9b6073d2fD2516d0162B768830A2c8',
+                '0x00000000Ae6D2Dd2417733BfA7DeDE6AA10efB58',
+                '0x000000006766DC158D9D167aeed0D00De5CF1743',
                 ]
         merge_addresses(c, addresses)
         for x in c.execute('select * from accounts') :
