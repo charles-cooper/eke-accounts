@@ -52,8 +52,10 @@ def process_block(c, blk) :
     txns = blk.transactions
     addrs = [] # web3 returns checksummed addresses
     for txn in txns :
-        if 'from' in txn and txn['from'] :
-            addrs.append(txn['from'])
+        # presumably an address can only be 'from' if it has previously
+        # been 'to' (or a genesis address).
+        # if 'from' in txn and txn['from'] :
+        #     addrs.append(txn['from'])
         if 'to' in txn and txn['to'] :
             addrs.append(txn['to'])
     merge_addresses(c, addrs)
