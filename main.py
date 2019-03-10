@@ -219,6 +219,9 @@ async def get_account_by_address(req) :
     # print(prefix)
     dat = parse_resultset(list(c.execute(
         'select * from accounts where address = ?', (addr,))))
+    if len(dat) < 1 :
+        raise web.HTTPNotFound(reason='address not found in database')
+
     return web.json_response(dat[0])
 
 async def run_server() :
