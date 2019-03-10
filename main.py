@@ -203,6 +203,7 @@ def parse_resultset(resultset) :
 async def get_accounts_by_prefix(req) :
     q = req.rel_url.query
     prefix = q.get('prefix')
+
     # print(prefix)
     if not prefix :
         raise web.HTTPBadRequest(reason='param \'prefix\' required')
@@ -211,9 +212,9 @@ async def get_accounts_by_prefix(req) :
     return web.json_response(dat)
 
 async def get_account_by_address(req) :
+    addr = req.match_info.get('address')
     q = req.rel_url.query
-    addr = q.get('address')
-    strict = 'require_checksum' in q
+    strict = 'validate_checksum' in q
 
     # validate address
     if not addr :
@@ -236,9 +237,8 @@ async def run_server() :
     app = web.Application()
     app.add_routes([
         web.get('/current-block', get_current_block),
-        # merge these and switch on query param?
         web.get('/accounts-by-prefix', get_accounts_by_prefix),
-        web.get('/account-by-address', get_account_by_address),
+        web.get('/account-by-address/{address}', get_account_by_address),
         ])
 
     runner = web.AppRunner(app)

@@ -1,2 +1,2 @@
-Optimize (e.g. batch `merge_address`)
-Handle exceptions
+Handle more exceptions
+Document the API

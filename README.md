@@ -16,8 +16,11 @@ at shorthash.coopertech.co. Example usage:
 ```bash
 $ curl shorthash.coopertech.co/current-block
 {"current_block": 8137}
-$ curl shorthash.coopertech.co/account-by-address?address=0x631030A5B27B07288a45696F189E1114f12A81c0
+$ curl shorthash.coopertech.co/account-by-address/0x631030A5B27B07288a45696F189E1114f12A81c0
 {"prefix": "arrest scare", "suffix": "toward thing", "shorthash": "arrest scare family", "address": "0x631030A5B27B07288a45696F189E1114f12A81c0"}
+# Use the 'validate_checksum' query param to ensure the address is properly checksummed.
+$ curl http://shorthash.coopertech.co/account-by-address/0x631030a5b27b07288a45696f189e1114f12a81c0?validate_checksum
+400: invalid checksummed address
 $ curl shorthash.coopertech.co/accounts-by-prefix?prefix=arrest%20scare
 [{"prefix": "arrest scare", "suffix": "pony emerge", "shorthash": "arrest scare motion", "address": "0x6310B020fD98044957995092090F17F04e52cdfD"}, {"prefix": "arrest scare", "suffix": "toward thing", "shorthash": "arrest scare family", "address": "0x631030A5B27B07288a45696F189E1114f12A81c0"}]
 ```
