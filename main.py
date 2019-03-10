@@ -213,10 +213,18 @@ async def get_accounts_by_prefix(req) :
 async def get_account_by_address(req) :
     q = req.rel_url.query
     addr = q.get('address')
+    strict = 'require_checksum' in q
+
+    # validate address
     if not addr :
         raise web.HTTPBadRequest(reason='param \'address\' required')
-    addr = w3.toChecksumAddress(addr)
-    # print(prefix)
+    if strict and not w3.isChecksumAddress(addr) :
+        raise web.HTTPBadRequest(reason='invalid checksummed address')
+    try :
+        addr = w3.toChecksumAddress(addr)
+    except ValueError :
+        raise web.HTTPBadRequest(reason='not an address')
+
     dat = parse_resultset(list(c.execute(
         'select * from accounts where address = ?', (addr,))))
     if len(dat) < 1 :
