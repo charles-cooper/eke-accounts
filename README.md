@@ -2,7 +2,7 @@
 
 This repository is a proof-of-concept implementation of conversations
 with @wwithiam at ETHDenver 2019. The idea is that, while there are
-near-infinite unique Ethereum addresses (2^20), the number of addresses
+near-infinite unique Ethereum addresses (2^160), the number of addresses
 which have been interacted with is much smaller (70 million or so as of
 time of writing). Using a 2048-word wordlist, we can represent all
 'touched' addresses with just 2-3 words apiece. This codebase calculates
